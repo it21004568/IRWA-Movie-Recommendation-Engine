@@ -95,8 +95,8 @@ st.set_page_config(page_title="Movie Recommendation App", page_icon="🎬")
 # Title with the movie icon
 st.title("🎬 Cinematique: Your Movie Adventure Awaits 🎬")
 st.divider()
-#st.header("Movie Recommendation App",divider="violet")
 st.markdown("Discover personalized movie recommendations!")
+
 # User input
 st.sidebar.title("User Inputs")
 user_id = st.sidebar.number_input("Enter your User ID", min_value=1, max_value=670, value=2)
@@ -105,33 +105,43 @@ movie_title = st.sidebar.selectbox("Select a movie:", movies_df['title'].tolist(
 # Get the movieId for the entered movie title
 movie_id_user = movies_df.loc[movies_df['title'] == movie_title, 'movieId'].values[0]
 
-# Get recommendations
-if st.button("Get Recommendations"):
+# Function to get recommendations
+@st.cache_data
+def get_recommendations(user_id, movie_title):
     # Content-based recommendations
-    movie_index_content = movies_df[movies_df['movieId'] == movie_id_user].index[0]
+    movie_index_content = movies_df[movies_df['title'] == movie_title].index[0]
     distances_content, indices_content = knn_model.kneighbors(tfidf_matrix_combined[movie_index_content], n_neighbors=6)
     recommended_movies_content = [(movies_df.iloc[idx]['title'], 1 - distances_content.flatten()[i]) for i, idx in enumerate(indices_content.flatten()[1:])]
 
     # Collaborative filtering recommendations
     recommended_movie_ratings = item_based_rec(userid=user_id, number_of_similar_items=5, number_of_recommendations=5)
 
+    return recommended_movie_ratings, recommended_movies_content
+
+# Get recommendations
+if st.button("Get Recommendations"):
+    recommended_movie_ratings, recommended_movies_content = get_recommendations(user_id, movie_title)
+
     # Display recommendations
     st.subheader("Explore Unwatched Gems Based on Your Ratings:", divider='green')
     for movie, rating in recommended_movie_ratings:
         st.write(movie)
         
-        
     st.subheader(f"Recommendations Based on Your Choice of : {movie_title}", divider='blue')
     for movie, sim in recommended_movies_content:
         st.write(movie)
-
     
-
 # User feedback
-    st.divider()
-    st.subheader("User Feedback")
-    user_feedback = st.selectbox("How would you rate the recommendations we made for you?", [5, 4, 3, 2, 1])
+st.divider()
+st.subheader("User Feedback")
+user_feedback = st.selectbox("How would you rate the recommendations we made for you?", [5, 4, 3, 2, 1])
 
 # You can save the feedback in your dataset for future model improvement
-    st.write(f"Thank you for your feedback! You rated the recommendations as: {user_feedback}")
+st.write(f"Thank you for your feedback! You rated the recommendations as: {user_feedback}")
+
+
+# In[ ]:
+
+
+
 
