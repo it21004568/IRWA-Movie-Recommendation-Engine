@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[13]:
+# In[2]:
 
 
 # Data processing
@@ -104,26 +104,32 @@ def recommend_movies_by_genre(input_genres, movies_df, tfidf_matrix_combined, kn
     # Filter movies by selected genres
     selected_movies = movies_df[movies_df['genres'].str.contains('|'.join(input_genres))]
 
-    # Get movie IDs for selected movies
-    movie_ids = selected_movies['movieId'].values
+    # Calculate similarities for all selected movies
+    similarities = knn_model.kneighbors(tfidf_matrix_combined[selected_movies.index], n_neighbors=num_recommendations + 1)
 
-    # Content-based recommendations
     recommended_movies_content = []
 
-    for movie_id_user in movie_ids:
-        # Get the index of the chosen movie
-        movie_index_content = movies_df[movies_df['movieId'] == movie_id_user].index[0]
-        distances_content, indices_content = knn_model.kneighbors(tfidf_matrix_combined[movie_index_content], n_neighbors=num_recommendations + 1)
-        recommended_movies_content.extend([(movies_df.iloc[idx]['title'], 1 - distances_content.flatten()[i]) for i, idx in enumerate(indices_content.flatten()[1:])])
+    for i, movie_id_user in enumerate(selected_movies['movieId'].values):
+        # Get the indices of the most similar movies (excluding the movie itself)
+        indices_content = similarities[1][i][1:]
 
-    # Sort recommended movies by similarity score and limit to the top 5
+        # Retrieve the corresponding similarity scores
+        scores_content = 1 - similarities[0][i][1:]
+
+        # Extend the recommendations list
+        recommended_movies_content.extend([(movies_df.iloc[idx]['title'], score) for idx, score in zip(indices_content, scores_content)])
+
+    # Sort recommended movies by similarity score and limit to the top n_recommendations
     recommended_movies_content.sort(key=lambda x: x[1], reverse=True)
     recommended_movies_content = recommended_movies_content[:num_recommendations]
 
-    return recommended_movies_content
+    return sorted(recommended_movies_content)
 
-# Extract distinct genres from the dataset
-distinct_genres = movies_df['genres'].str.split('|').explode().unique()
+# Extract distinct genres from the dataset and sort them alphabetically
+distinct_genres = sorted(movies_df['genres'].str.split('|').explode().unique())
+
+# Remove 'no genres listed' if it exists in the list
+distinct_genres = [genre for genre in distinct_genres if genre != '(no genres listed)']
 
 # Streamlit App
 st.set_page_config(page_title="Movie Recommendation App", page_icon="🎬")
@@ -143,25 +149,36 @@ recommended_movies_content = []
 
 # Get recommendations
 if st.button("Get Recommendations"):
-    # Get movie recommendations based on genres
-    recommended_movies_content = recommend_movies_by_genre(selected_genres, movies_df, tfidf_matrix_combined, knn_model)
-
     # Collaborative filtering recommendations
     recommended_movie_ratings = item_based_rec(picked_user_id=user_id, number_of_similar_items=5, number_of_recommendations=5)
-
+    
+    # Create a set to keep track of recommended movie titles
+    seen_titles_collaborative = set()
+    
     # Display recommendations
     st.subheader("Explore Unwatched Gems Based on Your Ratings:", divider='green')
     for movie, rating in recommended_movie_ratings:
-        st.write(movie)
+        # Check if the title has already been displayed
+        if movie not in seen_titles_collaborative:
+            st.write(movie)
+            seen_titles_collaborative.add(movie)
         
-        
+    # Get movie recommendations based on genres
+    recommended_movies_content = recommend_movies_by_genre(selected_genres, movies_df, tfidf_matrix_combined, knn_model)
+         
+    # Create a set to keep track of recommended movie titles
+    seen_titles_content = set()
+
     st.subheader(f"Recommendations Based on Your Choice of Genres: {selected_genres}", divider='blue')
     if recommended_movies_content:
         for title, score in recommended_movies_content:
-            st.write(title)
+            # Check if the title has already been displayed
+            if title not in seen_titles_content:
+                st.write(title)
+                seen_titles_content.add(title)
     else:
         st.write("No recommendations found for the selected genres.")
-    
+        
 
 # User feedback
     st.divider()
