@@ -1,4 +1,4 @@
-NearestNeighbors
+scikit-learn
 TfidfVectorizer
 operator
 cosine_similarity
